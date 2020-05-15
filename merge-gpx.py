@@ -14,16 +14,17 @@ def getTracks(hrFilename):
 	root = tree.getroot()
 	tracks = root[1][2]
 	for track in tracks:
-		el = Track()
-		time = track[1].text
-		el.time = datetime.strptime(time, dateFormat)
-		
-		if len(track) is 3:
-			extension = track[2][0]
-			el.hr = extension[0].text
-			el.cadence = extension[1].text
+		if (len(track[1].text.rstrip()) > 0):
+			el = Track()
+			time = track[1].text
+			el.time = datetime.strptime(time, dateFormat)
+			
+			if len(track) is 3:
+				extension = track[2][0]
+				el.hr = extension[0].text
+				el.cadence = extension[1].text
 
-		hrTracks.append(el)
+			hrTracks.append(el)
 	return hrTracks
 
 def matchHrToTracks(hrTracks, noHrTracks):
@@ -85,6 +86,9 @@ filenameWoHR = sys.argv[2]
 hrTracks = getTracks(filenameHR)
 woHrTracks = getTracks(filenameWoHR)
 
+print ('HR tracks from file:', filenameHR, len(hrTracks), 'tracks found')
+print ('Speed tracks from file:', filenameWoHR, len(woHrTracks), 'tracks found')
+
 matchHrToTracks(hrTracks, woHrTracks)
 
 hrCounter = 0
@@ -96,7 +100,7 @@ for track in woHrTracks:
 	if hasattr(track, 'possibleHRs'):
 		track.hr = getAverageElement(track.possibleHRs)
 		track.cadence = getAverageElement(track.possibleCadence)
-
+	print (track)
 	if track.hr == 0:
 		noHRs.append(hrCounter)
 	if track.cadence == 0:
@@ -142,19 +146,20 @@ root = tree.getroot()
 tracks = root[1][2]
 idx = 0
 for track in tracks:
-	extensions = ET.Element("extensions")
-	trackPointExtension = ET.Element("gpxtpx:TrackPointExtension")
-	hr = ET.Element("gpxtpx:hr")
-	cadence = ET.Element("gpxtpx:cad")
-	
-	hr.text = str(woHrTracks[idx].hr)
-	cadence.text = str(woHrTracks[idx].cadence)
-	
-	track.append(extensions)		
-	track[2].append(trackPointExtension)
-	track[2][0].append(hr)
-	track[2][0].append(cadence)
-	idx += 1
+	if (len(track[1].text.rstrip()) > 0):
+		extensions = ET.Element("extensions")
+		trackPointExtension = ET.Element("gpxtpx:TrackPointExtension")
+		hr = ET.Element("gpxtpx:hr")
+		cadence = ET.Element("gpxtpx:cad")
+		
+		hr.text = str(woHrTracks[idx].hr)
+		cadence.text = str(woHrTracks[idx].cadence)
+		
+		track.append(extensions)		
+		track[2].append(trackPointExtension)
+		track[2][0].append(hr)
+		track[2][0].append(cadence)
+		idx += 1
 
 tree.write('fixed_'+ filenameWoHR)
 
