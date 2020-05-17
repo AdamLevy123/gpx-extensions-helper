@@ -3,29 +3,42 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 
 dateFormat = "%Y-%m-%dT%H:%M:%SZ"
-ET.register_namespace('', "http://www.topografix.com/GPX/1/1")
+namespace = "http://www.topografix.com/GPX/1/1"
+namespaces = { 'gpxtpx' : 'http://www.topografix.com/GPX/1/1' }
+ET.register_namespace('', namespace)
 
 class Track:
 	pass
 
 def getTracks(hrFilename):
-	hrTracks = []
+	tracks = []
 	tree = ET.parse(hrFilename)
 	root = tree.getroot()
-	tracks = root[1][2]
-	for track in tracks:
-		if (len(track[1].text.rstrip()) > 0):
-			el = Track()
-			time = track[1].text
-			el.time = datetime.strptime(time, dateFormat)
-			
-			if len(track) is 3:
-				extension = track[2][0]
-				el.hr = extension[0].text
-				el.cadence = extension[1].text
+	trkseg = getElement(getElement(root, 'trk'), 'trkseg')
+	for track in getElements(trkseg, 'trkpt'):		
+		time = getElement(track, 'time')
+		extensions = getElement(track, 'extensions')
+		
+		el = Track()
+		el.time = datetime.strptime(time.text, dateFormat)
+		if extensions:
+			el.hr = getElement(extensions, 'hr').text
+			el.cadence = getElement(extensions, 'cadence').text
 
-			hrTracks.append(el)
-	return hrTracks
+		tracks.append(el)
+	return tracks
+	
+def getElement(tag, name):
+	return tag.find('gpxtpx:%s' % name, namespaces)
+	
+def getElements(tag, name):
+	return tag.findall('gpxtpx:%s' % name, namespaces)
+
+def hasExtensions(track):
+	for attr in track:
+		if 'extensions' in attr.tag:
+			return True;
+	return False;
 
 def matchHrToTracks(hrTracks, noHrTracks):
 	for track in noHrTracks:
@@ -43,6 +56,7 @@ def matchHrToTracks(hrTracks, noHrTracks):
 					track.possibleCadence.append(hrTrack.cadence)
 				track.hr = 0
 				track.cadence = 0
+
 	return noHrTracks
 		
 def isInProperTimeRange(firstDate, secondDate):
@@ -51,8 +65,8 @@ def isInProperTimeRange(firstDate, secondDate):
 def average(hrs):
 	sum = 0
 	for hr in hrs:
-		sum += int(hr)
-	return int(sum / len(hrs))
+		sum += float(hr)
+	return float(sum / len(hrs))
 	
 def getAverageElement(list):
 	return average(list) if len(list) > 1 else list[0]
@@ -89,6 +103,9 @@ woHrTracks = getTracks(filenameWoHR)
 print ('HR tracks from file:', filenameHR, len(hrTracks), 'tracks found')
 print ('Speed tracks from file:', filenameWoHR, len(woHrTracks), 'tracks found')
 
+### if time matches take hr and cadence from corresponding track
+### if time doesn't match take hr and cadence from track within 3 sec range and put in possibleHRs array
+### if time is outside 3 sec range -> hr and cadence are 0
 matchHrToTracks(hrTracks, woHrTracks)
 
 hrCounter = 0
@@ -100,7 +117,6 @@ for track in woHrTracks:
 	if hasattr(track, 'possibleHRs'):
 		track.hr = getAverageElement(track.possibleHRs)
 		track.cadence = getAverageElement(track.possibleCadence)
-	print (track)
 	if track.hr == 0:
 		noHRs.append(hrCounter)
 	if track.cadence == 0:
@@ -108,7 +124,6 @@ for track in woHrTracks:
 
 	hrCounter += 1
 	cadenceCounter += 1
-
 sortedHRs = getConsecutiveElements(noHRs)
 sortedCadences = getConsecutiveElements(noCadences)
 
@@ -120,10 +135,10 @@ for sortedHR in sortedHRs:
 		properHR = 0
 		if firstElement == 0:
 			properHR = woHrTracks[lastElement + 1].hr
-		if lastElement == len(woHrTracks) - 1:
+		elif lastElement == len(woHrTracks) - 1:
 			properHR = woHrTracks[firstElement - 1].hr
 		else:
-			properHR = int((int(woHrTracks[firstElement - 1].hr) + int(woHrTracks[lastElement + 1].hr))/2)
+			properHR = float((float(woHrTracks[firstElement - 1].hr) + float(woHrTracks[lastElement + 1].hr))/2)
 		woHrTracks[element].hr = properHR
 
 for sortedCadence in sortedCadences:
@@ -134,32 +149,30 @@ for sortedCadence in sortedCadences:
 		properCadence = 0
 		if firstElement == 0:
 			properCadence = woHrTracks[lastElement + 1].cadence
-		if lastElement == len(woHrTracks) - 1:
+		elif lastElement == len(woHrTracks) - 1:
 			properCadence = woHrTracks[firstElement - 1].cadence
 		else:
-			properCadence = int((int(woHrTracks[firstElement - 1].cadence) + int(woHrTracks[lastElement + 1].cadence))/2)
+			properCadence = float((float(woHrTracks[firstElement - 1].cadence) + float(woHrTracks[lastElement + 1].cadence))/2)
 		woHrTracks[element].cadence = properCadence
-
 
 tree = ET.parse(filenameWoHR)
 root = tree.getroot()
 tracks = root[1][2]
 idx = 0
 for track in tracks:
-	if (len(track[1].text.rstrip()) > 0):
-		extensions = ET.Element("extensions")
-		trackPointExtension = ET.Element("gpxtpx:TrackPointExtension")
-		hr = ET.Element("gpxtpx:hr")
-		cadence = ET.Element("gpxtpx:cad")
-		
-		hr.text = str(woHrTracks[idx].hr)
-		cadence.text = str(woHrTracks[idx].cadence)
-		
-		track.append(extensions)		
-		track[2].append(trackPointExtension)
-		track[2][0].append(hr)
-		track[2][0].append(cadence)
-		idx += 1
+	extensions = ET.Element("extensions")
+	trackPointExtension = ET.Element("gpxtpx:TrackPointExtension")
+	hr = ET.Element("gpxtpx:hr")
+	cadence = ET.Element("gpxtpx:cad")
+	
+	hr.text = str(woHrTracks[idx].hr)
+	cadence.text = str(woHrTracks[idx].cadence)
+	
+	track.append(extensions)		
+	track[2].append(trackPointExtension)
+	track[2][0].append(hr)
+	track[2][0].append(cadence)
+	idx += 1
 
 tree.write('fixed_'+ filenameWoHR)
 
