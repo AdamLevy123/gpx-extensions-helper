@@ -1,13 +1,13 @@
 # gpx-extensions-helper
-This tool lets you use your friend's gpx track as your activity without his HR, cadence, etc.
 
-**Usage example:**
+**Remove hr/cadence data:**
 
 *py fix-gpx.py Morning_Ride.gpx*
 
-
-And the other one is for merging hr and cadence info from one gpx to the other based on timestamp
-
-**Usage example:**
+**Copy hr/cadence data from one gpx to the other:**
 
 *py merge-gpx.py Morning_Ride_without_hr.gpx Morning_Ride_with_HR.gpx*
+
+**Time shift by provided seconds:**
+
+*py time-shift.py Morning_Run.gpx 123*
